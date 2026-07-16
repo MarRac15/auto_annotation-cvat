@@ -1,0 +1,7 @@
+.env
+*.bak
+.venv/
+unlabeled/
+__pycache__/
+yolo_full_dataset/
+
