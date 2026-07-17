@@ -264,7 +264,7 @@ You should see it listed below with state *"ready"*.
 Go to the UI, go to the *Models* page and you'll see your model.
 
 From now on you'll be able to use it straight from the UI!
-Go to your task, then select a job. You'll find the "magic wand" tool in the toolbar. Select our detector and start auto-annotating!
+Go to your tasks, click on *"Actions"* next to your task and select *"Autoamtic annotation"* option.
 
 ---
 
