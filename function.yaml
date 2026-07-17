@@ -1,10 +1,32 @@
 metadata:
   name: onion-weed-ultralytics
+  namespace: cvat
+  annotations:
+    name: Onion/Weed Detector
+    type: detector
+    framework: pytorch
+    spec: |
+      [
+        { "id": 0, "name": "Onion" },
+        { "id": 1, "name": "Weed" }
+      ]
 spec:
-  description: YOLOv8 onion/weed detector for CVAT (Ultralytics)
+  description: YOLOv8 onion/weed detector for CVAT
+  runtime: 'python:3.10'
   handler: yolo_nuctl_function:handler
-  image: nuclio/nuclio-python:3.11-stretch-1.12.8
   kind: python
+
+  build:
+    baseImage: python:3.10-slim
+    directives:
+      preCopy:
+        - kind: RUN
+          value: apt-get update && apt-get install -y libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+    commands:
+      - pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - pip install --no-cache-dir ultralytics pillow
+      - pip uninstall -y opencv-python
+      - pip install --no-cache-dir opencv-python-headless
 
   minReplicas: 1
   maxReplicas: 5
@@ -14,8 +36,7 @@ spec:
       maxWorkers: 2
       kind: http
       attributes:
-        method: ["POST"]
-        path: /
+        maxRequestBodySize: 33554432
 
   environment:
     MODEL_PATH: "/models/best.pt"
@@ -28,7 +49,7 @@ spec:
     - volume:
         name: model-data
         hostPath:
-          path: /mnt/c/Users/Marek/Documents/runs/detect/train/weights
+          path: /home/mraczkowski/models/best.pt
       volumeMount:
         name: model-data
         mountPath: /models

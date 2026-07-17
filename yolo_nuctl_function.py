@@ -2,27 +2,25 @@ import os
 import logging
 import base64
 import io
+import json
 from typing import List, Dict, Any
 from PIL import Image
 from ultralytics import YOLO
 
-# ----------------------------------------------------------------------
-# Logging configuration
-# ----------------------------------------------------------------------
+
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
     format="%(asctime)s %(levelname)s %(name)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
-# ----------------------------------------------------------------------
+
 # Model loading (runs once per container)
-# ----------------------------------------------------------------------
 MODEL_PATH = os.getenv("MODEL_PATH", "/models/best.pt")
 try:
     _model = YOLO(MODEL_PATH)
-    # Extract class names from the model (Ultralytics stores them in .names)
-    _model_names = _model.names  # e.g. {0: 'Onion', 1: 'Weed'}
+    # Extract class names from the model:
+    _model_names = _model.names  # {0: 'Onion', 1: 'Weed'}
 
     logger.info(f"Loaded Ultralytics model from {MODEL_PATH}")
     logger.info(f"Model classes: {_model_names}")
@@ -33,16 +31,14 @@ except Exception as exc:
     _model = None
     _model_names = {}
 
-# ----------------------------------------------------------------------
+
 # Detection thresholds (can be overridden via env)
-# ----------------------------------------------------------------------
 CONF_THRESHOLD = float(os.getenv("CONF_THRESHOLD", "0.25"))
 IOU_THRESHOLD = float(os.getenv("IOU_THRESHOLD", "0.45"))
 MAX_DET = int(os.getenv("MAX_DET", "300"))
 
-# ----------------------------------------------------------------------
-# Nuclio entry point
-# ----------------------------------------------------------------------
+#------------------------------------------
+#Nuclio entry point
 def handler(context, event):
     """
     Expected JSON payload:
@@ -55,14 +51,14 @@ def handler(context, event):
         ]}
     """
     try:
-        # ------------------------------------------------------------------
-        # 1️⃣ Parse input
-        # ------------------------------------------------------------------
-        if not isinstance(event.body, (bytes, str)):
-            raise ValueError("Event body must be bytes or string")
-        raw = event.body.decode("utf-8") if isinstance(event.body, bytes) else event.body
-        import json
-        data = json.loads(raw)
+        if isinstance(event.body, dict):
+            data = event.body
+        elif isinstance(event.body, (bytes, str)):
+            raw = event.body.decode("utf-8") if isinstance(event.body, bytes) else event.body
+            data = json.loads(raw)
+        else:
+            raise ValueError("Event body must be bytes, string, or dict")
+
 
         if "image" not in data:
             return _error_response(context, "Missing 'image' field", 400)
@@ -71,14 +67,12 @@ def handler(context, event):
         img_bytes = base64.b64decode(img_b64)
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
 
-        # ------------------------------------------------------------------
-        # 2️⃣ Run inference (if model loaded successfully)
-        # ------------------------------------------------------------------
+
         if _model is None:
             logger.warning("Model not available – returning empty annotation list")
             return _success_response(context, [])
 
-        # Ultralytics predict returns a list of Results objects (one per image)
+        #returns a list of Results objects (one per image)
         results = _model.predict(
             source=img,
             conf=CONF_THRESHOLD,
@@ -87,9 +81,8 @@ def handler(context, event):
             verbose=False,
         )
 
-        # ------------------------------------------------------------------
-        # 3️⃣ Convert Results → CVAT annotation list
-        # ------------------------------------------------------------------
+        # -----------------------------------------------------------
+        #Convert Results to CVAT annotation list
         annotations: List[Dict[str, Any]] = []
         for result in results:
             # result.boxes holds the detections (xyxy, conf, cls)
@@ -107,13 +100,14 @@ def handler(context, event):
                 label_id = int(cls_id)
                 annotations.append(
                     {
-                        "type": "rectangle",
-                        "label_id": label_id,
+                        "confidence": str(score),
+                        "label": _model_names[int(cls_id)],
                         "points": [x1, y1, x2, y2],
+                        "type": "rectangle",
                     }
                 )
 
-        # Optional: limit total detections
+        #limit total detections
         if len(annotations) > MAX_DET:
             annotations = sorted(annotations, key=lambda a: a.get("score", 0), reverse=True)[:MAX_DET]
 
@@ -125,9 +119,8 @@ def handler(context, event):
         return _error_response(context, str(exc), 500)
 
 
-# ----------------------------------------------------------------------
+# -----------------------------------------------------------
 # Helper builders for responses
-# ----------------------------------------------------------------------
 def _success_response(context, annotations: List[Dict[str, Any]]):
     import json
     return context.Response(
