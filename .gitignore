@@ -1,7 +1,10 @@
 .env
+*.zip
 *.bak
 .venv/
 unlabeled/
+spinach_luxeed/
 __pycache__/
 yolo_full_dataset/
-
+yolo_full_dataset_onion/
+yolo_spinach_dataset/
