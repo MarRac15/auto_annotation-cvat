@@ -95,36 +95,71 @@ The first approach is easy and straight-forward, but requires using the terminal
 The second one is much more elegant, because the model can be used from the UI, although the process of deploying the model is complex and may result in many failed attempts due to the lack of proper instructions in the original documentation. 
 
 ----
+### The first approach - using CVAT-CLI
 
 Let's start with the first approach, as it is much easier to replicate.
 
 
-1) The first step is to write code that will be called by CVAT during auto-annotation. Not only does it have to run predictions on your model, but also convert the results to the CVAT rectangle annotation format. The documentation specifies that you should create a module, but a file with a single "detect" function would also be enough.
+**1) The first step is to write code that will be called by CVAT during auto-annotation.** Not only does it have to run predictions on your model, but also convert the results to the CVAT rectangle annotation format. The documentation specifies that you should create a module, but a file with a single "detect" function would also be enough.
 
-You can find this code in the *yolo_detect_cvat.py* file provided with this project. It's adjusted for our model and the dataset, so it's ready to use!
+You can find the code in the *yolo_detect_cvat.py* file provided with this project. It's adjusted for our model and the dataset, so it's ready to use!
 
-2) Once you have the function ready, install the CVAT-CLI:
+**2) Once you have the function ready, install the CVAT-CLI:**
 ```
 pip install cvat-cli
 ```
 
-3) You have to authenticate with the CVAT server either via token or password. Check your username, password, the server address and the server port.
+**3) Authenticate with the CVAT server either via token or password.** It's recommended to use a token, as you don't have to provide your username and password with each command. 
+
+To get the token from the UI, you need to log in to your account, click on your user, choose "profile" and then choose "security". Add a new token on the Personal Access Tokens screen. Be sure to copy the token value.
+
+Export the token as an environmental variable:
 ```
-cvat-cli --auth <username>:<password> \
-  --server-host <localhost> \
-  --server-port <8080>
+export CVAT_ACCESS_TOKEN="your_token_value"
+```
+Cvat reads your token and authenticates you automatically, when it's properly assigned to the environmental variable.
 
+
+**4)** Create a new project in the CVAT UI, add labels *"Onion"* and *"Weed"*. Create a new task and upload your images to it.
+
+
+**5) Running the auto-annotation:**
+
+First, run:
+```
+cvat-cli --server-host <server-address> --server-port <server-port> task ls
+```
+to find your tasks. Copy the id of the task that you created earlier.
+
+
+Then, run the auto-annotation on the chosen task:
+```
+cvat-cli --server-host <server-address> --server-port <server-port> task auto-annotate <your-task-id> --function-file "yolo_detect_cvat.py"
 ```
 
-4) Run the auto-annotation:
+You should see the progress bar in the terminal and the appropiate message. Go to the UI to see the results.
 
+
+**IMPORTANT!**
+
+- Remember to be in the project directory while executing these commands. Be sure that you are still inside the virtual environment.
+
+
+- If you encounter *import cv2 error* then:
 ```
-task auto-annotate --function-file yolo_detect_cvat.py --function-parameter conf=float:<threshold-value> --conf-threshold 0.25 123
+sudo apt update
+sudo apt install -y libgl1 libglib2.0-0
 ```
-CHECK W.I.P.
+It should fix the problem.
 
 
-
-The original documentation:
+---
+**The original documentation:**
 - https://docs.cvat.ai/docs/api_sdk/sdk/auto-annotation/
 - https://docs.cvat.ai/docs/api_sdk/cli/
+
+----
+
+### The second approach - via Nuclio
+
+To use your model from the UI, you'll have to deploy it as a Nuclio function (works like a serverless function).
