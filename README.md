@@ -5,9 +5,10 @@ This project presents the whole pipeline for training and deploying your custom 
 1. **yolo_label_import.py** - script for converting dataset (labels in XML format) downloaded from CVAT to YOLO format
 2. **yolo_model_train** - script for training the chosen yolo model on the given dataset
 3. **yolo_eval_test** - for running validation on either val or test dataset
-4. **yolo_nuctl_function** - handler that uses the trained model to be deployed as a nuclio function (more on that later)
-5. **function.yaml** - specification for nuclio associated with the handler above
-6. **yolo_detect_cvat** - used in the auto-annotation via cvat-cli (more on that later)
+
+4. **yolo_detect_cvat** - used in the auto-annotation via cvat-cli (more on that later)
+5. **yolo_nuctl_function** - handler that uses the trained model to be deployed as a nuclio function (more on that later)
+6. **function.yaml** - specification for nuclio associated with the handler above
 
 ----
 
@@ -104,12 +105,42 @@ Let's start with the first approach, as it is much easier to replicate.
 
 You can find the code in the *yolo_detect_cvat.py* file provided with this project. It's adjusted for our model and the dataset, so it's ready to use!
 
-**2) Once you have the function ready, install the CVAT-CLI:**
+**2) From now on, you'll be working on the Virtual Machine that runs your CVAT server.** (Skip this step if you're hosting it on your local machine.)
+
+Assuming that you've been training the model on your local machine with GPU, you'll have to copy it to the VM. 
+
+- Copy the YOLO model to the new directory on the VM that runs CVAT:
+```
+scp <your-local-path-to-the-model> user@vm-ip:/home/user/models/best.pt
+```
+(You'll have to create the directory first on the VM)
+
+- set the model path to the environmental variable:
+```
+export CVAT_MODEL_PATH="/home/user/models/best.pt"
+```
+
+- Clone this repo:
+```
+git clone https://github.com/MarRac15/auto_annotation-cvat.git
+```
+
+- Create a venv in the project directory and activate it:
+```
+python -m venv .venv
+source .venv/bin/activate
+```
+
+- In the venv, install these packages:
+``ultralytics``, ``cvat_sdk``
+
+
+**3) Once you have configured your environment, install the CVAT-CLI:**
 ```
 pip install cvat-cli
 ```
 
-**3) Authenticate with the CVAT server either via token or password.** It's recommended to use a token, as you don't have to provide your username and password with each command. 
+**4) Authenticate with the CVAT server either via token or password.** It's recommended to use a token, as you don't have to provide your username and password with each command. 
 
 To get the token from the UI, you need to log in to your account, click on your user, choose "profile" and then choose "security". Add a new token on the Personal Access Tokens screen. Be sure to copy the token value.
 
@@ -120,10 +151,10 @@ export CVAT_ACCESS_TOKEN="your_token_value"
 Cvat reads your token and authenticates you automatically, when it's properly assigned to the environmental variable.
 
 
-**4)** Create a new project in the CVAT UI, add labels *"Onion"* and *"Weed"*. Create a new task and upload your images to it.
+**5)** Create a new project in the CVAT UI, add labels *"Onion"* and *"Weed"*. Create a new task and upload your images to it.
 
 
-**5) Running the auto-annotation:**
+**6) Running the auto-annotation:**
 
 First, run:
 ```
@@ -140,7 +171,7 @@ cvat-cli --server-host <server-address> --server-port <server-port> task auto-an
 You should see the progress bar in the terminal and the appropiate message. Go to the UI to see the results.
 
 
-**IMPORTANT!**
+**IMPORTANT NOTES!**
 
 - Remember to be in the project directory while executing these commands. Be sure that you are still inside the virtual environment.
 
@@ -163,3 +194,77 @@ It should fix the problem.
 ### The second approach - via Nuclio
 
 To use your model from the UI, you'll have to deploy it as a Nuclio function (works like a serverless function).
+
+1) Create a new directory on the VM that is running CVAT (e.g. /nuclio-functions). 
+Copy the *function.yaml* and *yolo_nuctl_function.py* files from this project to the newly created dir.
+
+2) Stop all the running cvat containers:
+```
+docker compose -f docker-compose.yml -f components/serverless/docker-compose.serverless.yml down
+```
+
+3) Bring up cvat with auto annotation tool. From cvat root directory, run:
+
+```
+docker compose -f docker-compose.yml -f components/serverless docker-compose.serverless.yml up -d
+```
+
+Run ``docker ps``.
+You can see that the nuclio container has just been started alongside the cvat container
+
+
+4) Install nuctl - a command line tool for deploying nuclio functions:
+
+```
+wget https://github.com/nuclio/nuclio/releases/download/1.16.3/nuctl-1.16.3-linux-amd64
+```
+
+It is important that the version you download matches the version in docker-compose.serverless.yml
+
+In my case it’s version 1.16.3, if yours is different then change it in the github link in the command above.
+
+5) After downloading the nuclio, give it a proper permission and do a softlink:
+
+```
+sudo chmod +x nuctl-1.16.3-linux-amd64
+
+sudo ln -sf $(pwd)/nuctl-1.16.3-linux-amd64 /usr/local/bin/nuctl
+```
+
+(Again - change the version if necessary)
+
+
+6) Go to the */nuclio-functions* that you created in the first step. 
+
+
+7) Create a new nuclio project:
+```
+nuctl create project cvat --platform local
+```
+
+8) Deploy the function:
+```
+nuctl deploy --project-name cvat --path . --platform local --verbose
+```
+
+It detects your *.yaml* file and *.py* handler automatically (if you're in this directory that is).
+The deployment process can take a while.
+
+
+9) Check the status of your function:
+```
+nuctl get functions
+```
+
+You should see it listed below with state *"ready"*.
+
+Go to the UI, go to the *Models* page and you'll see your model.
+
+From now on you'll be able to use it straight from the UI!
+Go to your task, then select a job. You'll find the "magic wand" tool in the toolbar. Select our detector and start auto-annotating!
+
+---
+
+Official documentations:
+- https://docs.cvat.ai/docs/administration/community/advanced/installation_automatic_annotation/
+- https://docs.cvat.ai/docs/guides/serverless-tutorial/
