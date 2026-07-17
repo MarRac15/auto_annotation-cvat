@@ -198,6 +198,9 @@ To use your model from the UI, you'll have to deploy it as a Nuclio function (wo
 1) Create a new directory on the VM that is running CVAT (e.g. /nuclio-functions). 
 Copy the *function.yaml* and *yolo_nuctl_function.py* files from this project to the newly created dir.
 
+**!!! Be sure to go to *function.yaml* file and check the path to the model (in the volumes -> volume -> hostpath -> path)**
+Change it to the path where you have your yolo model stored on the VM (e.g.: /home/user/models/best.pt)
+
 2) Stop all the running cvat containers:
 ```
 docker compose -f docker-compose.yml -f components/serverless/docker-compose.serverless.yml down
