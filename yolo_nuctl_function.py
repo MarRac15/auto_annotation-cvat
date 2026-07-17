@@ -124,7 +124,7 @@ def handler(context, event):
 def _success_response(context, annotations: List[Dict[str, Any]]):
     import json
     return context.Response(
-        body=json.dumps({"annotations": annotations}),
+        body=json.dumps(annotations),
         headers={},
         content_type="application/json",
         status_code=200,
