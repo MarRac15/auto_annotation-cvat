@@ -1,4 +1,4 @@
-This project presents the whole pipeline for training and deploying your custom detection model to CVAT, to enable auto-annotation on your datasets. The scripts were made for detecting the Onion and Weed classes specifically, but can be easily tweaked for different classes.
+This project presents the whole pipeline for training and deploying your custom detection model to CVAT, to enable auto-annotation on your datasets. The scripts were made for detecting the Onion and Weed classes (or Spinach and Weed) specifically, but can be easily tweaked for different classes. For now, it should work with onion and spinach datasets.
 
 ### This project consists of the files below:
 
@@ -27,11 +27,12 @@ Save the downloaded zip, preferably in the *cvat_dataset* directory from this pr
 To run the script, run in the terminal:
 
 ```
-python yolo_label_import.py --zip_path <path-to-your-zip> --out <my_dataset>
+python yolo_label_import.py --zip_path <path-to-your-zip> --dataset <crop-type> --out <my_dataset>
 ```
 where:
 - < path-to-your-zip > is the path to the directory where you saved your dataset (zip file), e.g.: cvat_dataset/archive.zip
 - < my_dataset > is the path for the output directory
+- < crop-type > is either *onion* or *spinach* - choose the appropiate option depending on your current dataset type
 
 What the script does is:
 - extracts the zip to the folder next to the zip (with the same name)
